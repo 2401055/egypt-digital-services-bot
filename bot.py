@@ -12,7 +12,7 @@ from faker import Faker
 # إعدادات البوت الأساسية
 # ==============================================================================
 
-TOKEN = "8605066160:AAFe8I9wp4RX8-uTsUGU4bfQZJgl4ZwRuv8"
+TOKEN = "8719808324:AAFt-vGpbiy9uEku2xSTJ7SbJbLg9QvfpnU"
 bot = telebot.TeleBot(TOKEN)
 
 # اذكر المصدر @Abosgr2025 • https://t.me/+YNZRwbLWXRZjMmVk
