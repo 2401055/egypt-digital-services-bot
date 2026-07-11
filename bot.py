@@ -7,7 +7,10 @@ import re
 import threading
 from datetime import datetime
 from faker import Faker
-import account_manager # استيراد ملف مدير الحسابات
+
+# ==============================================================================
+# إعدادات البوت الأساسية
+# ==============================================================================
 
 TOKEN = "8605066160:AAFe8I9wp4RX8-uTsUGU4bfQZJgl4ZwRuv8"
 bot = telebot.TeleBot(TOKEN)
@@ -15,7 +18,9 @@ bot = telebot.TeleBot(TOKEN)
 # اذكر المصدر @Abosgr2025 • https://t.me/+YNZRwbLWXRZjMmVk
 # • BLACK LEGO 👋
 
-# ========== الإيموجيات المتحركة Premium ==========
+# ==============================================================================
+# الإيموجيات المتحركة Premium (لتحسين واجهة المستخدم)
+# ==============================================================================
 EMOJI_CROWN = "5017184459347199280"         # 1
 EMOJI_DIAMOND = "5017181010488460393"       # 2
 EMOJI_STAR = "5017218054581388213"          # 3
@@ -37,15 +42,21 @@ EMOJI_HEART = "5017351305941746807"         # 18
 EMOJI_SETTINGS = "5017558392084890552"      # 19
 EMOJI_LOADING = "5019348457144452062"       # 20
 
-# ========== بيانات المستخدمين ==========
+# ==============================================================================
+# بيانات المستخدمين والإحصائيات
+# ==============================================================================
 user_data = {}
 global_stats = {"created": 0, "failed": 0}
 
+# ==============================================================================
+# دوال إدارة الحسابات (قاعدة بيانات بسيطة بملف JSON)
+# ==============================================================================
 def save_account_to_db(user_id, account_info):
+    """يحفظ معلومات الحساب في ملف JSON خاص بالمستخدم."""
     try:
-        with open('accounts_db.json', 'r') as f:
+        with open("accounts_db.json", "r", encoding="utf-8") as f:
             db = json.load(f)
-    except:
+    except (FileNotFoundError, json.JSONDecodeError):
         db = {}
     
     uid = str(user_id)
@@ -54,26 +65,30 @@ def save_account_to_db(user_id, account_info):
     
     db[uid].append(account_info)
     
-    with open('accounts_db.json', 'w') as f:
+    with open("accounts_db.json", "w", encoding="utf-8") as f:
         json.dump(db, f, indent=4)
 
 def get_user_accounts(user_id):
+    """يسترجع قائمة الحسابات المحفوظة للمستخدم."""
     try:
-        with open('accounts_db.json', 'r') as f:
+        with open("accounts_db.json", "r", encoding="utf-8") as f:
             db = json.load(f)
             return db.get(str(user_id), [])
-    except:
+    except (FileNotFoundError, json.JSONDecodeError):
         return []
 
-# ========== دوال فيسبوك ==========
-
+# ==============================================================================
+# دوال فيسبوك (لإنشاء الحسابات وفحصها وجلب البيانات)
+# ==============================================================================
 def get_regex_group(pattern, text, default_value=""):
+    """يستخرج مجموعة من النص باستخدام التعبيرات العادية."""
     match = re.search(pattern, text)
     if match:
         return match.group(1)
     return default_value
 
 def get_fake_desktop_ua():
+    """يولد وكيل مستخدم (User-Agent) عشوائي لمحاكاة متصفح سطح المكتب."""
     desktop_uas = [
         {
             "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -105,6 +120,7 @@ def get_fake_desktop_ua():
     return random.choice(desktop_uas)
 
 def parse_set_cookie(headers):
+    """يحلل رأس 'Set-Cookie' ويستخرج الكوكيز."""
     raw_cookie = headers.get('Set-Cookie')
     cookies = {}
     if not raw_cookie:
@@ -125,6 +141,7 @@ def parse_set_cookie(headers):
     return cookies, cookie_str
 
 def create_facebook_account(password=None):
+    """ينشئ حساب فيسبوك جديد بشكل تلقائي."""
     fake = Faker('en_US')
     ua_data = get_fake_desktop_ua()
     first_name = fake.first_name_female()
@@ -297,8 +314,92 @@ def create_facebook_account(password=None):
     except Exception as e:
         return {"success": False, "error": str(e)[:200]}
 
+def get_facebook_headers(cookies_str):
+    """يجهز رؤوس الطلب (Headers) لطلبات فيسبوك."""
+    return {
+        'authority': 'www.facebook.com',
+        'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+        'accept-language': 'en-US,en;q=0.9',
+        'cache-control': 'max-age=0',
+        'cookie': cookies_str,
+        'sec-ch-prefers-color-scheme': 'dark',
+        'sec-ch-ua': '"Not)A;Brand";v="24", "Chromium";v="116"',
+        'sec-ch-ua-full-version-list': '"Not)A;Brand";v="24.0.0.0", "Chromium";v="116.0.5845.188"',
+        'sec-ch-ua-mobile': '?0',
+        'sec-ch-ua-model': '""',
+        'sec-ch-ua-platform': '"Windows"',
+        'sec-ch-ua-platform-version': '"15.0.0"',
+        'sec-fetch-dest': 'document',
+        'sec-fetch-mode': 'navigate',
+        'sec-fetch-site': 'none',
+        'sec-fetch-user': '?1',
+        'upgrade-insecure-requests': '1',
+        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36',
+    }
 
+def check_account_status(cookies_str):
+    """يفحص حالة حساب فيسبوك باستخدام الكوكيز."""
+    headers = get_facebook_headers(cookies_str)
+    try:
+        response = requests.get('https://www.facebook.com/profile.php', headers=headers, timeout=15)
+        if 'checkpoint' in response.url or 'login.php' in response.url:
+            return {"status": "banned/locked", "message": "الحساب محظور أو يتطلب تسجيل دخول (Checkpoint)"}
+        if 'c_user' in cookies_str:
+            return {"status": "active", "message": "الحساب نشط ويعمل بشكل جيد"}
+        return {"status": "unknown", "message": "لم يتم التعرف على حالة الحساب"}
+    except Exception as e:
+        return {"status": "error", "message": f"خطأ أثناء الفحص: {str(e)}"}
+
+def fetch_account_data(cookies_str):
+    """يجلب الاسم الحقيقي وعدد الأصدقاء وحالة الحساب من فيسبوك."""
+    headers = get_facebook_headers(cookies_str)
+    try:
+        response = requests.get('https://www.facebook.com/me', headers=headers, timeout=15)
+        text = response.text
+        
+        # جلب الاسم الحقيقي
+        name_match = re.search(r'<title>(.*?)</title>', text)
+        real_name = name_match.group(1).split('|')[0].strip() if name_match else "غير معروف"
+        if "Facebook" in real_name or not real_name:
+            real_name = "مستخدم فيسبوك"
+
+        # جلب عدد الأصدقاء (محاولة أولية)
+        friends_match = re.search(r'(\d+)\s+friends', text)
+        friend_count = friends_match.group(1) if friends_match else "0"
+
+        return {
+            "success": True,
+            "real_name": real_name,
+            "friend_count": friend_count,
+            "status": "نشط",
+            "message": "تم جلب البيانات بنجاح"
+        }
+    except Exception as e:
+        return {"success": False, "message": f"خطأ أثناء جلب البيانات: {str(e)}"}
+
+def perform_automated_task(cookies_str, task_type):
+    """ينفذ مهام تلقائية على حساب فيسبوك (قيد التطوير)."""
+    headers = get_facebook_headers(cookies_str)
+    try:
+        # هذه الوظائف تتطلب FB_DTSG و JAZOEST للقيام بعمليات النشر
+        # محاولة جلب التوكنات اللازمة
+        res = requests.get('https://www.facebook.com/', headers=headers, timeout=15)
+        fb_dtsg = re.search(r'name="fb_dtsg" value="(.*?)"', res.text)
+        jazoest = re.search(r'name="jazoest" value="(.*?)"', res.text)
+        
+        if task_type == "post_welcome":
+            # مثال بسيط لمنشور ترحيبي (يتطلب معرفة الـ User ID و endpoint محددة)
+            return {"success": False, "message": "وظيفة النشر التلقائي تتطلب إعدادات إضافية للـ API"}
+        
+        return {"success": False, "message": "المهمة غير متوفرة حالياً"}
+    except Exception as e:
+        return {"success": False, "message": f"خطأ في المهمة: {str(e)}"}
+
+# ==============================================================================
+# دوال مساعدة لواجهة المستخدم (الرسوم المتحركة)
+# ==============================================================================
 def show_loading_animation(chat_id, msg_id, stop_event):
+    """يعرض رسوم متحركة للتحميل في رسالة تيليجرام."""
     frames = ["▰▱▱▱▱", "▰▰▱▱▱", "▰▰▰▱▱", "▰▰▰▰▱", "▰▰▰▰▰"]
     i = 0
     
@@ -323,11 +424,13 @@ def show_loading_animation(chat_id, msg_id, stop_event):
         i += 1
         time.sleep(0.8)
 
-
-# ========== أوامر البوت ==========
+# ==============================================================================
+# أوامر البوت ومعالجة الاستدعاءات (Handlers)
+# ==============================================================================
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
+    """يرسل رسالة الترحيب مع الأزرار الرئيسية."""
     welcome_text = (
         f'<tg-emoji emoji-id="{EMOJI_CROWN}">👑</tg-emoji> <b>FACEBOOK GEN</b>\n'
         f'<blockquote>أداة إنشاء حسابات فيسبوك تلقائياً</blockquote>\n\n'
@@ -389,9 +492,182 @@ def send_welcome(message):
     )
 
 
+def show_account_result(chat_id, msg_id, result):
+    """يعرض نتيجة إنشاء حساب واحد."""
+    if result["success"]:
+        global_stats["created"] += 1
+        
+        success_text = (
+            f'<tg-emoji emoji-id="{EMOJI_SUCCESS}">✅</tg-emoji> <b>تم الإنشاء بنجاح</b>\n'
+            f'<blockquote expandable>\n'
+            f'<b>👤 الاسم:</b> <code>{result["first_name"]} {result["last_name"]}</code>\n'
+            f'<b>📧 الإيميل:</b> <code>{result["email"]}</code>\n'
+            f'<b>🔒 الباسورد:</b> <code>{result["password"]}</code>\n'
+            f'<b>🌐 IP:</b> <code>{result["ip"]}</code>\n\n'
+            f'<b>🍪 الكوكيز:</b>\n<code>{result["cookie"]}</code>\n'
+            f'</blockquote>'
+        )
+        
+        # open('akun_id', 'a').write(f'{result["cookie"]}|{result["password"]}\n') # تم التعليق عليه لأنه تم استبداله بـ save_account_to_db
+        
+        keyboard = [
+            [
+                {
+                    "text": "إنشاء آخر",
+                    "callback_data": "create_another",
+                    "style": "success",
+                    "icon_custom_emoji_id": EMOJI_ROCKET
+                },
+                {
+                    "text": "رجوع",
+                    "callback_data": "back_to_start",
+                    "style": "danger",
+                    "icon_custom_emoji_id": EMOJI_SHIELD
+                }
+            ]
+        ]
+    
+    else:
+        global_stats["failed"] += 1
+        
+        success_text = (
+            f'<tg-emoji emoji-id="{EMOJI_FAIL}">❌</tg-emoji> <b>فشل الإنشاء</b>\n'
+            f'<blockquote expandable>{result["error"][:150]}</blockquote>'
+        )
+        
+        keyboard = [
+            [
+                {
+                    "text": "محاولة أخرى",
+                    "callback_data": "create_another",
+                    "style": "success",
+                    "icon_custom_emoji_id": EMOJI_ROCKET
+                },
+                {
+                    "text": "رجوع",
+                    "callback_data": "back_to_start",
+                    "style": "danger",
+                    "icon_custom_emoji_id": EMOJI_SHIELD
+                }
+            ]
+        ]
+    
+    bot.edit_message_text(
+        chat_id=chat_id,
+        message_id=msg_id,
+        text=success_text,
+        parse_mode='HTML',
+        reply_markup=json.dumps({"inline_keyboard": keyboard})
+    )
+
+def process_bulk_accounts(chat_id, user_id, count):
+    """ينشئ مجموعة من الحسابات ويرسل كل حساب برسالة منفصلة فور إنشائه."""
+    loading_msg = bot.send_message(
+        chat_id,
+        f'<tg-emoji emoji-id="{EMOJI_LOADING}">⏳</tg-emoji> <b>تجهيز {count} حساب...</b>',
+        parse_mode='HTML'
+    )
+    
+    password = user_data[user_id].get("password", "levi@$618pi")
+    success_list = []
+    fail_count = 0
+    
+    for i in range(1, count + 1):
+        progress = int(i / count * 100)
+        bar = "▰" * (progress // 10) + "▱" * (10 - progress // 10)
+        
+        try:
+            bot.edit_message_text(
+                chat_id=chat_id,
+                message_id=loading_msg.message_id,
+                text=(
+                    f'<tg-emoji emoji-id="{EMOJI_FIRE}">🔥</tg-emoji> <b>إنشاء {count} حساب</b>\n'
+                    f'<blockquote expandable>\n'
+                    f'<b>التقدم:</b> {i}/{count}\n'
+                    f'<b>الشريط:</b> [{bar}] {progress}%\n'
+                    f'<b>ناجح:</b> {len(success_list)} | <b>فاشل:</b> {fail_count}\n'
+                    f'</blockquote>'
+                ),
+                parse_mode='HTML'
+            )
+        except:
+            pass
+        
+        result = create_facebook_account(password)
+        
+        if result["success"]:
+            success_list.append(result)
+            global_stats["created"] += 1
+            
+            # إرسال الحساب في رسالة منفصلة بصندوق مطوي فور إنشائه
+            acc_text = (
+                f'<tg-emoji emoji-id="{EMOJI_SUCCESS}">✅</tg-emoji> <b>تم إنشاء حساب بنجاح ({len(success_list)})</b>\n'
+                f'<blockquote expandable>\n'
+                f'<b>👤 الاسم:</b> <code>{result["first_name"]} {result["last_name"]}</code>\n'
+                f'<b>📧 الإيميل:</b> <code>{result["email"]}</code>\n'
+                f'<b>🔒 الباسورد:</b> <code>{result["password"]}</code>\n'
+                f'<b>🌐 IP:</b> <code>{result["ip"]}</code>\n\n'
+                f'<b>🍪 الكوكيز:</b>\n<code>{result["cookie"]}</code>\n'
+                f'</blockquote>'
+            )
+            bot.send_message(chat_id, acc_text, parse_mode='HTML')
+            save_account_to_db(user_id, result)
+            
+        else:
+            fail_count += 1
+            global_stats["failed"] += 1
+        
+        if i < count:
+            time.sleep(random.randint(5, 10))
+    
+    # حذف رسالة التحميل المستمرة
+    try:
+        bot.delete_message(chat_id, loading_msg.message_id)
+    except:
+        pass
+    
+    now = datetime.now()
+    
+    # رسالة الملخص النهائي مع الأزرار
+    final_text = (
+        f'<tg-emoji emoji-id="{EMOJI_SUCCESS}">✅</tg-emoji> <b>اكتمل الإنشاء بالجملة!</b>\n'
+        f'<blockquote expandable>\n'
+        f'✅ <b>ناجح:</b> {len(success_list)}\n'
+        f'❌ <b>فاشل:</b> {fail_count}\n'
+        f'⏱️ <b>{now.strftime("%H:%M:%S")}</b>\n'
+        f'</blockquote>'
+    )
+    
+    keyboard = [
+        [
+            {
+                "text": "إنشاء آخر",
+                "callback_data": "create_another",
+                "style": "success",
+                "icon_custom_emoji_id": EMOJI_ROCKET
+            }
+        ],
+        [
+            {
+                "text": "رجوع",
+                "callback_data": "back_to_start",
+                "style": "danger",
+                "icon_custom_emoji_id": EMOJI_SHIELD
+            }
+        ]
+    ]
+    
+    bot.send_message(
+        chat_id,
+        final_text,
+        parse_mode='HTML',
+        reply_markup=json.dumps({"inline_keyboard": keyboard})
+    )
+
 
 @bot.callback_query_handler(func=lambda call: True)
 def handle_callback(call):
+    """يعالج جميع استدعاءات الأزرار المضمنة (Inline Keyboard Buttons)."""
     user_id = call.from_user.id
     chat_id = call.message.chat.id
     msg_id = call.message.message_id
@@ -408,7 +684,7 @@ def handle_callback(call):
         return
     
     # قائمة مدير الحسابات
-    if call.data == "account_manager_menu":
+    elif call.data == "account_manager_menu":
         accounts = get_user_accounts(user_id)
         if not accounts:
             manager_text = (
@@ -475,10 +751,10 @@ def handle_callback(call):
         anim_thread.start()
 
         if action == "check_status":
-            res = account_manager.check_account_status(cookies)
+            res = check_account_status(cookies)
             text = f'<tg-emoji emoji-id="{EMOJI_SUCCESS if res["status"] == "active" else EMOJI_FAIL}">{res["status"]}</tg-emoji> <b>النتيجة:</b> {res["message"]}'
         elif action == "fetch_data":
-            res = account_manager.fetch_account_data(cookies)
+            res = fetch_account_data(cookies)
             if res["success"]:
                 text = (f'<b>👤 الاسم:</b> <code>{res["real_name"]}</code>\n'
                         f'<b>👥 الأصدقاء:</b> <code>{res["friend_count"]}</code>\n'
@@ -491,75 +767,8 @@ def handle_callback(call):
         stop_event.set()
         anim_thread.join(timeout=1)
         
-        keyboard = [[{"text": "رجوع", "callback_data": f"manage_acc_{user_id}", "style": "danger"}]] # simplified return
-        bot.edit_message_text(chat_id=chat_id, message_id=loading_msg.message_id, text=text, parse_mode='HTML')
-
-    
-    # فحص الحساب
-    elif call.data == "check_account":
-        bot.edit_message_text(
-            chat_id=chat_id,
-            message_id=msg_id,
-            text=f'<tg-emoji emoji-id="{EMOJI_LOADING}">⏳</tg-emoji> <b>الرجاء إرسال الكوكيز لفحص الحساب...</b>',
-            parse_mode='HTML'
-        )
-        user_data[user_id]["state"] = "waiting_cookies_check"
-
-    # جلب البيانات المحدثة
-    elif call.data == "fetch_account_data":
-        bot.edit_message_text(
-            chat_id=chat_id,
-            message_id=msg_id,
-            text=f'<tg-emoji emoji-id="{EMOJI_LOADING}">⏳</tg-emoji> <b>الرجاء إرسال الكوكيز لجلب بيانات الحساب...</b>',
-            parse_mode='HTML'
-        )
-        user_data[user_id]["state"] = "waiting_cookies_fetch_data"
-
-    # قائمة المهام التلقائية
-    elif call.data == "automated_tasks_menu":
-        tasks_text = (
-            f'<tg-emoji emoji-id="{EMOJI_SETTINGS}">⚙️</tg-emoji> <b>المهام التلقائية</b>\n'
-            f'<blockquote>اختر المهمة المطلوبة:</blockquote>'
-        )
-        tasks_keyboard = [
-            [
-                {
-                    "text": "تغيير الصورة الشخصية (غير مدعوم)",
-                    "callback_data": "task_change_profile_pic",
-                    "style": "primary",
-                    "icon_custom_emoji_id": EMOJI_USER
-                }
-            ],
-            [
-                {
-                    "text": "نشر منشور ترحيبي (غير مدعوم)",
-                    "callback_data": "task_post_welcome",
-                    "style": "primary",
-                    "icon_custom_emoji_id": EMOJI_MAIL
-                }
-            ],
-            [
-                {
-                    "text": "رجوع",
-                    "callback_data": "account_manager_menu",
-                    "style": "danger",
-                    "icon_custom_emoji_id": EMOJI_SHIELD
-                }
-            ]
-        ]
-        bot.edit_message_text(
-            chat_id=chat_id,
-            message_id=msg_id,
-            text=tasks_text,
-            parse_mode='HTML',
-            reply_markup=json.dumps({"inline_keyboard": tasks_keyboard})
-        )
-
-    # معالجة المهام التلقائية (حاليًا غير مدعومة)
-    elif call.data.startswith("task_"):
-        bot.answer_callback_query(call.id, "هذه المهمة غير مدعومة حاليًا.", show_alert=True)
-        # Optionally, go back to the automated tasks menu
-        # handle_callback(call.message, "automated_tasks_menu") # This would require passing call.message and a data string
+        keyboard = [[{"text": "رجوع", "callback_data": "account_manager_menu", "style": "danger"}]] # simplified return
+        bot.edit_message_text(chat_id=chat_id, message_id=loading_msg.message_id, text=text, parse_mode='HTML', reply_markup=json.dumps({"inline_keyboard": keyboard}))
 
     # إنشاء حساب واحد
     elif call.data == "create_single":
@@ -580,50 +789,38 @@ def handle_callback(call):
         anim_thread.join(timeout=1)
         
         show_account_result(chat_id, loading_msg.message_id, result)
-    
-    # قائمة البلك
+        if result["success"]:
+            save_account_to_db(user_id, result)
+
+    # قائمة الإنشاء بالجملة
     elif call.data == "menu_bulk":
         bulk_text = (
             f'<tg-emoji emoji-id="{EMOJI_FIRE}">🔥</tg-emoji> <b>إنشاء بالجملة</b>\n'
-            f'<blockquote>حدد العدد المطلوب</blockquote>'
+            f'<blockquote>اختر عدد الحسابات التي تريد إنشاءها:</blockquote>'
         )
         
-        keyboard = [
+        bulk_keyboard = [
             [
                 {
-                    "text": "5",
-                    "callback_data": "bulk_5",
-                    "style": "success",
-                    "icon_custom_emoji_id": EMOJI_STAR
-                },
-                {
-                    "text": "10",
+                    "text": "10 حسابات",
                     "callback_data": "bulk_10",
-                    "style": "success",
-                    "icon_custom_emoji_id": EMOJI_STAR
-                },
-                {
-                    "text": "20",
-                    "callback_data": "bulk_20",
-                    "style": "success",
-                    "icon_custom_emoji_id": EMOJI_GEM
-                }
-            ],
-            [
-                {
-                    "text": "50",
-                    "callback_data": "bulk_50",
                     "style": "primary",
                     "icon_custom_emoji_id": EMOJI_FIRE
                 },
                 {
-                    "text": "100",
-                    "callback_data": "bulk_100",
+                    "text": "20 حساب",
+                    "callback_data": "bulk_20",
                     "style": "primary",
-                    "icon_custom_emoji_id": EMOJI_ROCKET
+                    "icon_custom_emoji_id": EMOJI_FIRE
                 }
             ],
             [
+                {
+                    "text": "50 حساب",
+                    "callback_data": "bulk_50",
+                    "style": "primary",
+                    "icon_custom_emoji_id": EMOJI_FIRE
+                },
                 {
                     "text": "عدد مخصص",
                     "callback_data": "bulk_custom",
@@ -646,27 +843,18 @@ def handle_callback(call):
             message_id=msg_id,
             text=bulk_text,
             parse_mode='HTML',
-            reply_markup=json.dumps({"inline_keyboard": keyboard})
+            reply_markup=json.dumps({"inline_keyboard": bulk_keyboard})
         )
-    
-    # تنفيذ البلك
+
+    # معالجة الإنشاء بالجملة
     elif call.data.startswith("bulk_"):
         if call.data == "bulk_custom":
             user_data[user_id]["state"] = "waiting_custom_count"
             prompt_text = (
-                f'<tg-emoji emoji-id="{EMOJI_SETTINGS}">⚙️</tg-emoji> <b>أدخل العدد (1-500)</b>\n'
-                f'<blockquote>أرسل الرقم الآن</blockquote>'
+                f'<tg-emoji emoji-id="{EMOJI_SETTINGS}">⚙️</tg-emoji> <b>عدد مخصص</b>\n'
+                f'<blockquote>أدخل عدد الحسابات التي تريد إنشاءها (1-500):</blockquote>'
             )
-            
-            keyboard = [[
-                {
-                    "text": "إلغاء",
-                    "callback_data": "back_to_start",
-                    "style": "danger",
-                    "icon_custom_emoji_id": EMOJI_FAIL
-                }
-            ]]
-            
+            keyboard = [[{"text": "إلغاء", "callback_data": "back_to_start", "style": "danger", "icon_custom_emoji_id": EMOJI_FAIL}]]
             bot.edit_message_text(
                 chat_id=chat_id,
                 message_id=msg_id,
@@ -675,17 +863,14 @@ def handle_callback(call):
                 reply_markup=json.dumps({"inline_keyboard": keyboard})
             )
         else:
-            count = int(call.data.split("_")[1])
+            count = int(call.data.split('_')[1])
             process_bulk_accounts(chat_id, user_id, count)
-    
+
     # تغيير الباسورد
     elif call.data == "change_password":
         user_data[user_id]["state"] = "waiting_password"
-        
-        current_pass = user_data[user_id].get("password", "levi@$618pi")
         prompt_text = (
             f'<tg-emoji emoji-id="{EMOJI_KEY}">🔑</tg-emoji> <b>تغيير الباسورد</b>\n'
-            f'<blockquote expandable>الحالي: <code>{current_pass}</code></blockquote>\n'
             f'<blockquote>أرسل الباسورد الجديد:</blockquote>'
         )
         
@@ -766,185 +951,13 @@ def handle_callback(call):
         anim_thread.join(timeout=1)
         
         show_account_result(chat_id, loading_msg.message_id, result)
-
-
-def process_bulk_accounts(chat_id, user_id, count):
-    """إنشاء مجموعة حسابات وإرسال كل حساب برسالة منفصلة فور إنشائه"""
-    loading_msg = bot.send_message(
-        chat_id,
-        f'<tg-emoji emoji-id="{EMOJI_LOADING}">⏳</tg-emoji> <b>تجهيز {count} حساب...</b>',
-        parse_mode='HTML'
-    )
-    
-    password = user_data[user_id].get("password", "levi@$618pi")
-    success_list = []
-    fail_count = 0
-    
-    for i in range(1, count + 1):
-        progress = int(i / count * 100)
-        bar = "▰" * (progress // 10) + "▱" * (10 - progress // 10)
-        
-        try:
-            bot.edit_message_text(
-                chat_id=chat_id,
-                message_id=loading_msg.message_id,
-                text=(
-                    f'<tg-emoji emoji-id="{EMOJI_FIRE}">🔥</tg-emoji> <b>إنشاء {count} حساب</b>\n'
-                    f'<blockquote expandable>\n'
-                    f'<b>التقدم:</b> {i}/{count}\n'
-                    f'<b>الشريط:</b> [{bar}] {progress}%\n'
-                    f'<b>ناجح:</b> {len(success_list)} | <b>فاشل:</b> {fail_count}\n'
-                    f'</blockquote>'
-                ),
-                parse_mode='HTML'
-            )
-        except:
-            pass
-        
-        result = create_facebook_account(password)
-        
         if result["success"]:
-            success_list.append(result)
-            global_stats["created"] += 1
-            
-            # إرسال الحساب في رسالة منفصلة بصندوق مطوي فور إنشائه
-            acc_text = (
-                f'<tg-emoji emoji-id="{EMOJI_SUCCESS}">✅</tg-emoji> <b>تم إنشاء حساب بنجاح ({len(success_list)})</b>\n'
-                f'<blockquote expandable>\n'
-                f'<b>👤 الاسم:</b> <code>{result["first_name"]} {result["last_name"]}</code>\n'
-                f'<b>📧 الإيميل:</b> <code>{result["email"]}</code>\n'
-                f'<b>🔒 الباسورد:</b> <code>{result["password"]}</code>\n'
-                f'<b>🌐 IP:</b> <code>{result["ip"]}</code>\n\n'
-                f'<b>🍪 الكوكيز:</b>\n<code>{result["cookie"]}</code>\n'
-                f'</blockquote>'
-            )
-            bot.send_message(chat_id, acc_text, parse_mode='HTML')
-            open('akun_id', 'a').write(f'{result["cookie"]}|{result["password"]}\n')
             save_account_to_db(user_id, result)
-        else:
-            fail_count += 1
-            global_stats["failed"] += 1
-        
-        if i < count:
-            time.sleep(random.randint(5, 10))
-    
-    # حذف رسالة التحميل المستمرة
-    try:
-        bot.delete_message(chat_id, loading_msg.message_id)
-    except:
-        pass
-    
-    now = datetime.now()
-    
-    # رسالة الملخص النهائي مع الأزرار
-    final_text = (
-        f'<tg-emoji emoji-id="{EMOJI_SUCCESS}">✅</tg-emoji> <b>اكتمل الإنشاء بالجملة!</b>\n'
-        f'<blockquote expandable>\n'
-        f'✅ <b>ناجح:</b> {len(success_list)}\n'
-        f'❌ <b>فاشل:</b> {fail_count}\n'
-        f'⏱️ <b>{now.strftime("%H:%M:%S")}</b>\n'
-        f'</blockquote>'
-    )
-    
-    keyboard = [
-        [
-            {
-                "text": "إنشاء آخر",
-                "callback_data": "create_another",
-                "style": "success",
-                "icon_custom_emoji_id": EMOJI_ROCKET
-            }
-        ],
-        [
-            {
-                "text": "رجوع",
-                "callback_data": "back_to_start",
-                "style": "danger",
-                "icon_custom_emoji_id": EMOJI_SHIELD
-            }
-        ]
-    ]
-    
-    bot.send_message(
-        chat_id,
-        final_text,
-        parse_mode='HTML',
-        reply_markup=json.dumps({"inline_keyboard": keyboard})
-    )
-
-
-def show_account_result(chat_id, msg_id, result):
-    """عرض نتيجة إنشاء حساب واحد"""
-    if result["success"]:
-        global_stats["created"] += 1
-        
-        success_text = (
-            f'<tg-emoji emoji-id="{EMOJI_SUCCESS}">✅</tg-emoji> <b>تم الإنشاء بنجاح</b>\n'
-            f'<blockquote expandable>\n'
-            f'<b>👤 الاسم:</b> <code>{result["first_name"]} {result["last_name"]}</code>\n'
-            f'<b>📧 الإيميل:</b> <code>{result["email"]}</code>\n'
-            f'<b>🔒 الباسورد:</b> <code>{result["password"]}</code>\n'
-            f'<b>🌐 IP:</b> <code>{result["ip"]}</code>\n\n'
-            f'<b>🍪 الكوكيز:</b>\n<code>{result["cookie"]}</code>\n'
-            f'</blockquote>'
-        )
-        
-        open('akun_id', 'a').write(f'{result["cookie"]}|{result["password"]}\n')
-        save_account_to_db(user_id, result)
-        
-        keyboard = [
-            [
-                {
-                    "text": "إنشاء آخر",
-                    "callback_data": "create_another",
-                    "style": "success",
-                    "icon_custom_emoji_id": EMOJI_ROCKET
-                },
-                {
-                    "text": "رجوع",
-                    "callback_data": "back_to_start",
-                    "style": "danger",
-                    "icon_custom_emoji_id": EMOJI_SHIELD
-                }
-            ]
-        ]
-    
-    else:
-        global_stats["failed"] += 1
-        
-        success_text = (
-            f'<tg-emoji emoji-id="{EMOJI_FAIL}">❌</tg-emoji> <b>فشل الإنشاء</b>\n'
-            f'<blockquote expandable>{result["error"][:150]}</blockquote>'
-        )
-        
-        keyboard = [
-            [
-                {
-                    "text": "محاولة أخرى",
-                    "callback_data": "create_another",
-                    "style": "success",
-                    "icon_custom_emoji_id": EMOJI_ROCKET
-                },
-                {
-                    "text": "رجوع",
-                    "callback_data": "back_to_start",
-                    "style": "danger",
-                    "icon_custom_emoji_id": EMOJI_SHIELD
-                }
-            ]
-        ]
-    
-    bot.edit_message_text(
-        chat_id=chat_id,
-        message_id=msg_id,
-        text=success_text,
-        parse_mode='HTML',
-        reply_markup=json.dumps({"inline_keyboard": keyboard})
-    )
 
 
 @bot.message_handler(func=lambda message: True)
 def handle_messages(message):
+    """يعالج الرسائل النصية الواردة من المستخدم."""
     user_id = message.from_user.id
     chat_id = message.chat.id
     
@@ -979,93 +992,6 @@ def handle_messages(message):
             reply_markup=json.dumps({"inline_keyboard": keyboard})
         )
     
-    elif state == "waiting_cookies_check":
-        cookies = message.text.strip()
-        user_data[user_id]["state"] = "idle"
-        
-        loading_msg = bot.send_message(
-            chat_id,
-            f'<tg-emoji emoji-id="{EMOJI_LOADING}">⏳</tg-emoji> <b>جاري فحص الحساب...</b>',
-            parse_mode='HTML'
-        )
-        
-        stop_event = threading.Event()
-        anim_thread = threading.Thread(target=show_loading_animation, args=(chat_id, loading_msg.message_id, stop_event))
-        anim_thread.start()
-        
-        check_result = account_manager.check_account_status(cookies)
-        
-        stop_event.set()
-        anim_thread.join(timeout=1)
-
-        status_text = (
-            f'<tg-emoji emoji-id="{EMOJI_SUCCESS if check_result["status"] == "active" else EMOJI_FAIL}">{check_result["status"]}</tg-emoji> <b>حالة الحساب:</b> {check_result["message"]}\n'
-        )
-        keyboard = [[
-            {
-                "text": "رجوع لمدير الحسابات",
-                "callback_data": "account_manager_menu",
-                "style": "primary",
-                "icon_custom_emoji_id": EMOJI_SHIELD
-            }
-        ]]
-        bot.edit_message_text(
-            chat_id=chat_id,
-            message_id=loading_msg.message_id,
-            text=status_text,
-            parse_mode='HTML',
-            reply_markup=json.dumps({"inline_keyboard": keyboard})
-        )
-
-    elif state == "waiting_cookies_fetch_data":
-        cookies = message.text.strip()
-        user_data[user_id]["state"] = "idle"
-
-        loading_msg = bot.send_message(
-            chat_id,
-            f'<tg-emoji emoji-id="{EMOJI_LOADING}">⏳</tg-emoji> <b>جاري جلب بيانات الحساب...</b>',
-            parse_mode='HTML'
-        )
-        
-        stop_event = threading.Event()
-        anim_thread = threading.Thread(target=show_loading_animation, args=(chat_id, loading_msg.message_id, stop_event))
-        anim_thread.start()
-
-        data_result = account_manager.fetch_account_data(cookies)
-
-        stop_event.set()
-        anim_thread.join(timeout=1)
-
-        if data_result["success"]:
-            data_text = (
-                f'<tg-emoji emoji-id="{EMOJI_SUCCESS}">✅</tg-emoji> <b>بيانات الحساب:</b>\n'
-                f'<blockquote expandable>\n'
-                f'<b>👤 الاسم الحقيقي:</b> <code>{data_result["real_name"]}</code>\n'
-                f'<b>👥 عدد الأصدقاء:</b> <code>{data_result["friend_count"]}</code>\n'
-                f'<b>🟢 الحالة:</b> <code>{data_result["status"]}</code>\n'
-                f'</blockquote>'
-            )
-        else:
-            data_text = (
-                f'<tg-emoji emoji-id="{EMOJI_FAIL}">❌</tg-emoji> <b>فشل جلب البيانات:</b>\n'
-                f'<blockquote expandable>{data_result["message"][:150]}</blockquote>'
-            )
-        keyboard = [[
-            {
-                "text": "رجوع لمدير الحسابات",
-                "callback_data": "account_manager_menu",
-                "style": "primary",
-                "icon_custom_emoji_id": EMOJI_SHIELD
-            }
-        ]]
-        bot.edit_message_text(
-            chat_id=chat_id,
-            message_id=loading_msg.message_id,
-            text=data_text,
-            parse_mode='HTML',
-            reply_markup=json.dumps({"inline_keyboard": keyboard})
-        )
-
     elif state == "waiting_custom_count":
         try:
             count = int(message.text.strip())
@@ -1084,5 +1010,5 @@ def handle_messages(message):
             bot.send_message(chat_id, error_text, parse_mode='HTML')
 
 
-print(" رروح شوفو يعمل...")
+print("البوت يعمل الآن...")
 bot.infinity_polling()
